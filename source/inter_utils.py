@@ -245,6 +245,7 @@ def get_df_data_presto(df_catalog, backward_period='1D', sensor='0240',
     sensor_abb = dt_sensors_abb[sensor]
 
     for query_station in stations:
+        # print query_station
         max_value = df_catalog.loc[query_station, 'max {}'.format(dt_sensors_abb[sensor]).lower()]
 
         if sensor == '0240':
@@ -445,8 +446,8 @@ def fetch_data(zone='Bogota', backward_period='1D', sensor='0240',
 
                 dt_data['cassandra'] = df_data.copy()
 
-            except Exception, e:
-                print "No se pudo obtener informacion de la base {}. {}".format(database, e)
+            except Exception as e:
+                print("No se pudo obtener informacion de la base {}. {}".format(database, e))
                 dt_data['cassandra'] = None
 
         elif database == 'postgresql':
@@ -461,8 +462,8 @@ def fetch_data(zone='Bogota', backward_period='1D', sensor='0240',
 
                 dt_data['postgresql'] = df_data.copy()
 
-            except Exception, e:
-                print "No se pudo obtener informacion de la base {}. {}".format(database, e)
+            except Exception as e:
+                print("No se pudo obtener informacion de la base {}. {}".format(database, e))
                 dt_data['postgresql'] = None
 
         elif database == 'sshm':
@@ -475,8 +476,8 @@ def fetch_data(zone='Bogota', backward_period='1D', sensor='0240',
 
                 dt_data['sshm'] = df_data.copy()
 
-            except Exception, e:
-                print "No se pudo obtener informacion de la base {}. {}".format(database, e)
+            except Exception as e:
+                print("No se pudo obtener informacion de la base {}. {}".format(database, e))
                 dt_data['sshm'] = None
 
     dt_data = {i: dt_data[i] for i in dt_data if i is not None}
