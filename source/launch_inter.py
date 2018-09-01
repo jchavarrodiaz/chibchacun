@@ -57,7 +57,7 @@ def run_daily(multiprocessing=True, current_time=None):
     start_inter_time = datetime.datetime.now()
     print("Inicio interpolacion diaria: {:%Y-%m-%d %H:%M}".format(start_inter_time))
 
-    run_daily_ts(multiprocessing=multiprocessing, current_time=current_time)
+    # run_daily_ts(multiprocessing=multiprocessing, current_time=current_time)
     run_daily_pt(multiprocessing=multiprocessing, current_time=current_time)
 
     end_inter_time = datetime.datetime.now()
@@ -125,8 +125,8 @@ def run_daily_pt(multiprocessing=True, current_time=None):
 
 
 def multiple_days(multiprocessing=False):
-    start = '2018-01-01 09:50'
-    end = '2018-01-18 09:50'
+    start = '2018-07-30 09:50'
+    end = '2018-08-29 09:50'
     dates = pd.date_range(start=start, end=end, freq='D')
 
     for date in dates:
@@ -202,15 +202,5 @@ def main():
 
 
 if __name__ == '__main__':
-    # run_hourly(True)
-    # run_daily(True)
-
-    # for hour in ['00:05', '01:05', '02:05', '03:05', '04:05', '05:05', '06:05',
-    #              '07:05', '08:05', '09:05', '10:05', '11:05', '12:05', '13:05',
-    #              '14:05', '15:05', '16:05', '17:05', '18:05', '19:05', '20:05',
-    #              '21:05', '22:05', '23:05']:
-
-    run_by_demand(current_time=pd.to_datetime('2018-05-25 10:05'), backward_periods='01D')
-
-    # main()
+    multiple_days(True)
     pass

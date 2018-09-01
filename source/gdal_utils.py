@@ -68,7 +68,7 @@ def array2raster(new_raster_fn, geo_transform, array, no_data_value=0., epsg=432
     out_band.FlushCache()
 
 
-def calculate_pixel_size(x_max, x_min, y_max, y_min, nx, ny):
+def calculate_pixel_size(x_max, x_min, y_max, y_min, nx, ny, loc):
     """
     Returns pixel size from extents and number of pixels.
     :param x_max:
@@ -79,9 +79,16 @@ def calculate_pixel_size(x_max, x_min, y_max, y_min, nx, ny):
     :param ny:
     :return:
     """
-
-    pixel_width = abs(x_min - x_max) / nx
-    pixel_height = abs(y_min - y_max) / (ny - 1)
+    if loc == 'Colombia':
+        pixel_width = abs(x_min - x_max) / nx
+        pixel_height = abs(y_min - y_max) / (ny - 1)
+    elif loc == 'Bogota':
+        pixel_width = abs(x_min - x_max) / (nx - 1)
+        pixel_height = abs(y_min - y_max) / (ny - 1)
+    else:
+        pixel_width = None
+        pixel_height = None
+        print 'Zona no definida'
 
     return pixel_width, pixel_height
 
