@@ -111,3 +111,5 @@ gis/
 notebooks/
 results/
 temp/
+.DS_*
+db/
