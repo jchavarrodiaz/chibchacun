@@ -131,6 +131,15 @@ def calc_coverage(raster_file, zone='Bogota'):
     return sum(coverage) / float(sum(total))
 
 
+def calc_zonal_stats():
+    shp_input = '../gis/ZonasIDIGER.shp'
+    rasterfile = '../results/estaciones/pt/tif/2018/08/02/06H/PT_STA_BOG_201808021100_06H.tif'
+    stats = ['count', 'max', 'min', 'mean', 'median', 'range']
+    results = zonal_stats(shp_input, rasterfile, stats=stats, all_touched=False, geojson_out=True)
+    gdf_stats = gpd.GeoDataFrame.from_features(results)
+    return gdf_stats
+
+
 def rain_daily_eval(eval_date, min_precs=None, products=None):
     """
 
@@ -301,8 +310,10 @@ def eval_forecast():
 
 
 if __name__ == '__main__':
-    eval_goes_monthly(year=2017, month=11, zone='Colombia')
+    # eval_goes_monthly(year=2017, month=11, zone='Colombia')
     # eval_goes_monthly()
     # multiple_eval_rain(True)
     # eval_any_date()
     # eval_forecast()
+    print(calc_zonal_stats())
+    pass
