@@ -1,6 +1,6 @@
 dt_pt_ranges = {
     'Seco': {
-        'Lim_Inf': 0.,
+        'Lim_Inf': -.1,
         'Lim_Sup': 2.,
         'Codigos': [1, 2, 3, 991, 992]
     },

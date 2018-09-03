@@ -13,6 +13,7 @@ from shapely.geometry import Point
 from rasterio.errors import RasterioIOError
 
 from config_utils import get_pars_from_ini
+import sqlite3
 from constants import dt_pt_ranges
 
 # TODO: Agregar los estadisticos de la precipitacion para cada zona en la base de datos de los pronosticos
@@ -156,13 +157,53 @@ def calc_zonal_stats(shp_input, rasterfile, stats=None):
     return gdf_stats
 
 
+def read_forecast_db():
+    db_path = '../db/pronosticos_bogota.db'
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+
+    sql = """
+    SELECT *
+    FROM pronosticos2
+    WHERE Fecha like '2018-08%'
+    AND Meterologo != '7'
+    ORDER BY Fecha
+    """
+
+    cur.execute(sql)
+    results = cur.fetchall()
+    cols = [i[0] for i in cur.description]
+    df_results = pd.DataFrame(results, columns=cols)
+    df_results.replace(u'Ma\xf1ana', 'Manana', inplace=True)
+
+    df_target = df_results[['Fecha', 'Jornada', 'Zona', 'Codigo_PT']]
+    df_target['Fecha'] = pd.to_datetime(df_target['Fecha'], format='%Y-%m-%d %H:%M')
+    df_target.loc[df_target['Jornada'] == 'Madrugada', 'Fecha'] = df_target['Fecha'] + pd.DateOffset(days=1)
+    df_target['Clase'] = ''
+
+    for class_fore in dt_pt_ranges:
+        codes_pt = dt_pt_ranges[class_fore]['Codigos']
+        df_target.loc[df_target['Codigo_PT'].isin(codes_pt), 'Clase'] = class_fore
+
+    df_target.sort_values(['Fecha', 'Jornada', 'Zona'], inplace=True)
+    df_target['Fecha'] = df_target['Fecha'].dt.date
+    df_target.drop_duplicates(['Fecha', 'Jornada', 'Zona'], inplace=True)
+    df_target.set_index(['Fecha', 'Jornada', 'Zona'], inplace=True)
+    df_target.index.names = ['Fecha_PT', 'Jornada', 'Zona']
+    df_target.drop('Codigo_PT', axis=1, inplace=True)
+    df_target.columns = ['Clase']
+
+    return df_target
+
+
 def eval_idiger():
     shp_input = '../gis/ZonasIDIGER.shp'
-    zones = list(gpd.read_file(shp_input)['ZONA'])
+    zones = sorted(list(gpd.read_file(shp_input)['Cod_Zona']))
     stats = ['median']
     dt_results = {i: pd.DataFrame(columns=zones + ['Jornada']) for i in stats}
+    dt_estimator_class = {}
 
-    spot_hours = {'0500_': 'Noche', '1100_': 'Madrugada', '1700_': 'Mañana', '2300_': 'Tarde'}
+    spot_hours = {'0500_': 'Noche', '1100_': 'Madrugada', '1700_': 'Manana', '2300_': 'Tarde'}
     dates = pd.date_range('2018-08-02', '2018-09-01', freq='D')
 
     for date_data in dates:
@@ -174,7 +215,7 @@ def eval_idiger():
             fore_time = rasterfiles[rasterfile]
             rasterfilename = '{}/{}'.format(path_raster_files, rasterfile)
             gdf_stats = calc_zonal_stats(shp_input, rasterfilename, stats)
-            gdf_stats.set_index('ZONA', inplace=True)
+            gdf_stats.set_index('Cod_Zona', inplace=True)
 
             for stat in stats:
                 sr_stat = gdf_stats[stat]
@@ -185,12 +226,39 @@ def eval_idiger():
     for stat in stats:
         df_stat = dt_results[stat]
         df_stat['Fecha_PT'] = pd.to_datetime(dt_results[stat].index.str[11:23], format='%Y%m%d%H%M')
-        df_stat['Fecha_Jornada'] = pd.to_datetime(dt_results[stat].index.str[11:19], format='%Y%m%d')
-        df_stat.loc[df_stat['Jornada'] == 'Madrugada', 'Fecha_Jornada'] = df_stat['Fecha_Jornada'] - pd.DateOffset(days=1)
         df_stat.set_index('Fecha_PT', inplace=True)
+        df_stat.fillna(0., inplace=True)
+        df_estimator_class = pd.DataFrame(index=df_stat.index, columns=df_stat.columns)
+
+        for class_fore in dt_pt_ranges:
+            lim_low = dt_pt_ranges[class_fore]['Lim_Inf']
+            lim_upp = dt_pt_ranges[class_fore]['Lim_Sup']
+            df_estimator_class[(df_stat > lim_low) & (df_stat <= lim_upp)] = class_fore
+
+        df_estimator_class['Jornada'] = df_stat['Jornada']
+        df_estimator_class.reset_index(inplace=True)
+        df_estimator_class.set_index(['Fecha_PT', 'Jornada'], inplace=True)
+        dt_estimator_class[stat] = df_estimator_class.copy()
+        sr_estimator_us = df_estimator_class.unstack(level=[0, 1]).sort_index()
+        df_estimator_us = pd.DataFrame(sr_estimator_us)
+        df_estimator_us.reset_index(inplace=True)
+        df_estimator_us.columns = ['Zona', 'Fecha_PT', 'Jornada', 'Clase']
+        df_estimator_us['Fecha_PT'] = df_estimator_us['Fecha_PT'] - pd.DateOffset(hours=11)
+        df_estimator_us['Fecha_PT'] = df_estimator_us['Fecha_PT'].dt.date
+        df_estimator_us.set_index(['Fecha_PT', 'Jornada', 'Zona'], inplace=True)
+        df_estimator_us.sort_index(level=[0, 1, 2], inplace=True)
+
+        df_forecast = read_forecast_db()
+        idx_intersection = df_estimator_us.index.intersection(df_forecast.index)
+
+        df_eval = pd.DataFrame(index=idx_intersection, columns=['Observado', 'Pronostico'], data='')
+        df_eval['Observado'] = df_estimator_us.loc[idx_intersection, 'Clase']
+        df_eval['Pronostico'] = df_forecast.loc[idx_intersection, 'Clase']
+        print(df_eval)
 
     xls_output = pd.ExcelWriter('../results/idiger_stats.xlsx')
     [dt_results[i].sort_index().to_excel(xls_output, i) for i in stats]
+    [dt_estimator_class[i].sort_index().to_excel(xls_output, '{}_Class'.format(i)) for i in stats]
     xls_output.save()
 
 
@@ -370,4 +438,5 @@ if __name__ == '__main__':
     # eval_any_date()
     # eval_forecast()
     eval_idiger()
+    # read_forecast_db()
     pass
