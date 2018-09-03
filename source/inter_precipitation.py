@@ -12,6 +12,7 @@ from inter_utils import *
 from filter_data import filter_sta as fd
 
 
+# TODO: Resolver que hacer cuando todos los elementos a interpolar son cero. Ver 2018-08-03 05:00
 path_results = dt_paths['path_results']
 
 

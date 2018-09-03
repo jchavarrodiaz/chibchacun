@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime
 import os
+import sys
 import urllib2
 from multiprocessing import Pool
 
@@ -11,7 +12,19 @@ from rasterstats import point_query, zonal_stats
 from shapely.geometry import Point
 from rasterio.errors import RasterioIOError
 
-from inter_utils import dt_paths, dt_extents
+from config_utils import get_pars_from_ini
+from constants import dt_pt_ranges
+
+# TODO: Agregar los estadisticos de la precipitacion para cada zona en la base de datos de los pronosticos
+
+exec_prefix = sys.exec_prefix
+gdal_data = '{}/share/gdal/'.format(exec_prefix)
+os.environ['GDAL_DATA'] = gdal_data
+
+dt_extents = get_pars_from_ini('../config/zones.ini')
+dt_config = get_pars_from_ini('../config/config.ini')
+dt_colors = get_pars_from_ini('../config/plots.ini')
+dt_paths = dt_config['Paths']
 
 # path_results = dt_paths['path_results']
 path_goes = dt_paths['path_goes']
@@ -19,7 +32,8 @@ path_gis = dt_paths['path_gis']
 path_eval = dt_paths['path_eval']
 
 path_raster = '../rasters/GOES13_v1'
-path_results = 'http://172.16.1.237/almacen/externo/estaciones/interpolacion'
+# path_results = 'http://172.16.1.237/almacen/externo/estaciones/interpolacion'
+path_results = '../results/estaciones'
 
 dt_months = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun',
              7: 'Jun', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
@@ -131,13 +145,53 @@ def calc_coverage(raster_file, zone='Bogota'):
     return sum(coverage) / float(sum(total))
 
 
-def calc_zonal_stats():
-    shp_input = '../gis/ZonasIDIGER.shp'
-    rasterfile = '../results/estaciones/pt/tif/2018/08/02/06H/PT_STA_BOG_201808021100_06H.tif'
-    stats = ['count', 'max', 'min', 'mean', 'median', 'range']
-    results = zonal_stats(shp_input, rasterfile, stats=stats, all_touched=False, geojson_out=True)
+def calc_zonal_stats(shp_input, rasterfile, stats=None):
+
+    if stats is None:
+        stats = ['count', 'max', 'min', 'mean', 'median', 'range']
+
+    results = zonal_stats(shp_input, rasterfile, stats=stats, all_touched=True, geojson_out=True)
     gdf_stats = gpd.GeoDataFrame.from_features(results)
+
     return gdf_stats
+
+
+def eval_idiger():
+    shp_input = '../gis/ZonasIDIGER.shp'
+    zones = list(gpd.read_file(shp_input)['ZONA'])
+    stats = ['median']
+    dt_results = {i: pd.DataFrame(columns=zones + ['Jornada']) for i in stats}
+
+    spot_hours = {'0500_': 'Noche', '1100_': 'Madrugada', '1700_': 'Mañana', '2300_': 'Tarde'}
+    dates = pd.date_range('2018-08-02', '2018-09-01', freq='D')
+
+    for date_data in dates:
+        path_raster_files = '{}/pt/tif/{:%Y/%m/%d}/06H'.format(path_results, date_data)
+        rasterfiles = {i: spot_hours[i[19:24]] for i in os.listdir(path_raster_files) if i[19:24] in spot_hours}
+
+        for rasterfile in rasterfiles:
+            print(rasterfile)
+            fore_time = rasterfiles[rasterfile]
+            rasterfilename = '{}/{}'.format(path_raster_files, rasterfile)
+            gdf_stats = calc_zonal_stats(shp_input, rasterfilename, stats)
+            gdf_stats.set_index('ZONA', inplace=True)
+
+            for stat in stats:
+                sr_stat = gdf_stats[stat]
+                sr_stat.loc['Jornada'] = fore_time
+                sr_stat.name = rasterfile
+                dt_results[stat] = dt_results[stat].append(sr_stat)
+
+    for stat in stats:
+        df_stat = dt_results[stat]
+        df_stat['Fecha_PT'] = pd.to_datetime(dt_results[stat].index.str[11:23], format='%Y%m%d%H%M')
+        df_stat['Fecha_Jornada'] = pd.to_datetime(dt_results[stat].index.str[11:19], format='%Y%m%d')
+        df_stat.loc[df_stat['Jornada'] == 'Madrugada', 'Fecha_Jornada'] = df_stat['Fecha_Jornada'] - pd.DateOffset(days=1)
+        df_stat.set_index('Fecha_PT', inplace=True)
+
+    xls_output = pd.ExcelWriter('../results/idiger_stats.xlsx')
+    [dt_results[i].sort_index().to_excel(xls_output, i) for i in stats]
+    xls_output.save()
 
 
 def rain_daily_eval(eval_date, min_precs=None, products=None):
@@ -315,5 +369,5 @@ if __name__ == '__main__':
     # multiple_eval_rain(True)
     # eval_any_date()
     # eval_forecast()
-    print(calc_zonal_stats())
+    eval_idiger()
     pass
