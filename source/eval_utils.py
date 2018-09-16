@@ -146,13 +146,45 @@ def calc_coverage(raster_file, zone='Bogota'):
     return sum(coverage) / float(sum(total))
 
 
+def precipitation_class(x):
+    """
+    Classifies PT values according to intervals defined in dt_pt_ranges.
+    :param x: PT Matrix
+    :return: Dictionary with counting of PT cells ranges.
+    """
+
+    dt_results = {}
+
+    for pt_class in dt_pt_ranges:
+        lim_inf = dt_pt_ranges[pt_class]['Lim_Inf']
+        lim_sup = dt_pt_ranges[pt_class]['Lim_Sup']
+        dt_results[pt_class] = np.ma.count(x[(lim_inf <= x) & (x < lim_sup)])
+
+    return dt_results
+
+
 def calc_zonal_stats(shp_input, rasterfile, stats=None):
 
     if stats is None:
         stats = ['count', 'max', 'min', 'mean', 'median', 'range']
 
-    results = zonal_stats(shp_input, rasterfile, stats=stats, all_touched=True, geojson_out=True)
+    # results = zonal_stats(shp_input, rasterfile, stats=stats, all_touched=True, geojson_out=True)
+    results = zonal_stats(shp_input, rasterfile,
+                          stats=stats,
+                          add_stats={'PT_Class': precipitation_class},
+                          all_touched=True,
+                          geojson_out=True)
+
     gdf_stats = gpd.GeoDataFrame.from_features(results)
+
+    for i in gdf_stats.index:
+        dt_class = gdf_stats.loc[i, 'PT_Class']
+
+        if max(dt_class.values()) == 0.:
+            gdf_stats.loc[i, 'Class'] = 'Seco'  # Si no se presentan lluvias, se pone cero.
+
+        else:
+            gdf_stats.loc[i, 'Class'] = max(dt_class, key=dt_class.get)
 
     return gdf_stats
 
@@ -199,9 +231,12 @@ def read_forecast_db():
 def eval_idiger():
     shp_input = '../gis/ZonasIDIGER.shp'
     zones = sorted(list(gpd.read_file(shp_input)['Cod_Zona']))
+    col_results = ['Jornada'] + zones
     stats = ['median']
-    dt_results = {i: pd.DataFrame(columns=zones + ['Jornada']) for i in stats}
+    dt_results = {i: pd.DataFrame(columns=col_results) for i in stats}
     dt_estimator_class = {}
+    df_pt_classes = pd.DataFrame(columns=col_results)
+    df_pt_class = pd.DataFrame(columns=col_results)
 
     spot_hours = {'0500_': 'Noche', '1100_': 'Madrugada', '1700_': 'Manana', '2300_': 'Tarde'}
     dates = pd.date_range('2018-08-02', '2018-09-01', freq='D')
@@ -214,12 +249,20 @@ def eval_idiger():
             if (i[19:24] in spot_hours) and (i[-4:] == '.tif')
         }
 
-        for rasterfile in rasterfiles:
+        for rasterfile in sorted(rasterfiles):
             print(rasterfile)
             fore_time = rasterfiles[rasterfile]
             rasterfilename = '{}/{}'.format(path_raster_files, rasterfile)
             gdf_stats = calc_zonal_stats(shp_input, rasterfilename, stats)
             gdf_stats.set_index('Cod_Zona', inplace=True)
+            sr_classes = gdf_stats['PT_Class']
+            sr_classes.loc['Jornada'] = fore_time
+            sr_classes.name = rasterfile
+            df_pt_classes = df_pt_classes.append(sr_classes)
+            sr_class = gdf_stats['Class']
+            sr_class.name = rasterfile
+            sr_class.loc['Jornada'] = fore_time
+            df_pt_class = df_pt_class.append(sr_class)
 
             for stat in stats:
                 sr_stat = gdf_stats[stat]
@@ -260,7 +303,15 @@ def eval_idiger():
         df_eval['Pronostico'] = df_forecast.loc[idx_intersection, 'Clase']
         print(df_eval)
 
+    df_pt_classes['Fecha_PT'] = pd.to_datetime(df_pt_classes.index.str[11:23], format='%Y%m%d%H%M')
+    df_pt_classes.set_index('Fecha_PT', inplace=True)
+
+    df_pt_class['Fecha_PT'] = pd.to_datetime(df_pt_class.index.str[11:23], format='%Y%m%d%H%M')
+    df_pt_class.set_index('Fecha_PT', inplace=True)
+
     xls_output = pd.ExcelWriter('../results/idiger_stats.xlsx')
+    df_pt_classes.to_excel(xls_output, 'Classes')
+    df_pt_class.to_excel(xls_output, 'Class')
     [dt_results[i].sort_index().to_excel(xls_output, i) for i in stats]
     [dt_estimator_class[i].sort_index().to_excel(xls_output, '{}_Class'.format(i)) for i in stats]
     xls_output.save()
