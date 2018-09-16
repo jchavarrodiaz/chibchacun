@@ -176,7 +176,7 @@ def read_forecast_db():
     df_results = pd.DataFrame(results, columns=cols)
     df_results.replace(u'Ma\xf1ana', 'Manana', inplace=True)
 
-    df_target = df_results[['Fecha', 'Jornada', 'Zona', 'Codigo_PT']]
+    df_target = df_results[['Fecha', 'Jornada', 'Zona', 'Codigo_PT']].copy()
     df_target['Fecha'] = pd.to_datetime(df_target['Fecha'], format='%Y-%m-%d %H:%M')
     df_target.loc[df_target['Jornada'] == 'Madrugada', 'Fecha'] = df_target['Fecha'] + pd.DateOffset(days=1)
     df_target['Clase'] = ''
@@ -208,7 +208,11 @@ def eval_idiger():
 
     for date_data in dates:
         path_raster_files = '{}/pt/tif/{:%Y/%m/%d}/06H'.format(path_results, date_data)
-        rasterfiles = {i: spot_hours[i[19:24]] for i in os.listdir(path_raster_files) if i[19:24] in spot_hours}
+        rasterfiles = {
+            i: spot_hours[i[19:24]]
+            for i in os.listdir(path_raster_files)
+            if (i[19:24] in spot_hours) and (i[-4:] == '.tif')
+        }
 
         for rasterfile in rasterfiles:
             print(rasterfile)
