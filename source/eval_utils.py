@@ -239,7 +239,7 @@ def eval_idiger():
     df_pt_class = pd.DataFrame(columns=col_results)
 
     spot_hours = {'0500_': 'Noche', '1100_': 'Madrugada', '1700_': 'Manana', '2300_': 'Tarde'}
-    dates = pd.date_range('2018-08-02', '2018-09-01', freq='D')
+    dates = pd.date_range('2018-09-01', '2018-10-01', freq='D')
 
     for date_data in dates:
         path_raster_files = '{}/pt/tif/{:%Y/%m/%d}/06H'.format(path_results, date_data)
