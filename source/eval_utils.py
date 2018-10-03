@@ -210,6 +210,13 @@ def read_forecast_db():
 
     df_target = df_results[['Fecha', 'Jornada', 'Zona', 'Codigo_PT']].copy()
     df_target['Fecha'] = pd.to_datetime(df_target['Fecha'], format='%Y-%m-%d %H:%M')
+
+    idx_drop = df_target[((df_target['Jornada'] == 'Noche') |
+                          (df_target['Jornada'] == 'Madrugada')) &
+                         (df_target['Fecha'].dt.hour < 12)].index
+
+    df_target.drop(idx_drop, inplace=True)
+
     df_target.loc[df_target['Jornada'] == 'Madrugada', 'Fecha'] = df_target['Fecha'] + pd.DateOffset(days=1)
     df_target['Clase'] = ''
 
