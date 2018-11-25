@@ -197,7 +197,7 @@ def read_forecast_db():
     sql = """
     SELECT *
     FROM pronosticos2
-    WHERE Fecha like '2018-08%'
+    WHERE Fecha like '2018%'
     AND Meterologo != '7'
     ORDER BY Fecha
     """
@@ -210,6 +210,13 @@ def read_forecast_db():
 
     df_target = df_results[['Fecha', 'Jornada', 'Zona', 'Codigo_PT']].copy()
     df_target['Fecha'] = pd.to_datetime(df_target['Fecha'], format='%Y-%m-%d %H:%M')
+
+    idx_drop = df_target[((df_target['Jornada'] == 'Noche') |
+                          (df_target['Jornada'] == 'Madrugada')) &
+                         (df_target['Fecha'].dt.hour < 12)].index
+
+    df_target.drop(idx_drop, inplace=True)
+
     df_target.loc[df_target['Jornada'] == 'Madrugada', 'Fecha'] = df_target['Fecha'] + pd.DateOffset(days=1)
     df_target['Clase'] = ''
 
@@ -239,7 +246,7 @@ def eval_idiger():
     df_pt_class = pd.DataFrame(columns=col_results)
 
     spot_hours = {'0500_': 'Noche', '1100_': 'Madrugada', '1700_': 'Manana', '2300_': 'Tarde'}
-    dates = pd.date_range('2018-09-01', '2018-10-01', freq='D')
+    dates = pd.date_range('2018-08-02', '2018-10-01', freq='D')
 
     for date_data in dates:
         path_raster_files = '{}/pt/tif/{:%Y/%m/%d}/06H'.format(path_results, date_data)
@@ -269,6 +276,8 @@ def eval_idiger():
                 sr_stat.loc['Jornada'] = fore_time
                 sr_stat.name = rasterfile
                 dt_results[stat] = dt_results[stat].append(sr_stat)
+
+    dt_stats = {}
 
     for stat in stats:
         df_stat = dt_results[stat]
@@ -301,7 +310,9 @@ def eval_idiger():
         df_eval = pd.DataFrame(index=idx_intersection, columns=['Observado', 'Pronostico'], data='')
         df_eval['Observado'] = df_estimator_us.loc[idx_intersection, 'Clase']
         df_eval['Pronostico'] = df_forecast.loc[idx_intersection, 'Clase']
-        print(df_eval)
+        df_eval['Acierto'] = df_eval['Observado'] == df_eval['Pronostico']
+        dt_stats[stat] = df_eval
+        # print(df_eval)
 
     df_pt_classes['Fecha_PT'] = pd.to_datetime(df_pt_classes.index.str[11:23], format='%Y%m%d%H%M')
     df_pt_classes.set_index('Fecha_PT', inplace=True)
@@ -309,11 +320,32 @@ def eval_idiger():
     df_pt_class['Fecha_PT'] = pd.to_datetime(df_pt_class.index.str[11:23], format='%Y%m%d%H%M')
     df_pt_class.set_index('Fecha_PT', inplace=True)
 
+    df_pt_class.reset_index(inplace=True)
+    df_pt_class.set_index(['Fecha_PT', 'Jornada'], inplace=True)
+    sr_pt_class_us = df_pt_class.unstack(level=[0, 1]).sort_index()
+    df_pt_class_us = pd.DataFrame(sr_pt_class_us)
+    df_pt_class_us.reset_index(inplace=True)
+    df_pt_class_us.columns = ['Zona', 'Fecha_PT', 'Jornada', 'Clase']
+    df_pt_class_us['Fecha_PT'] = df_pt_class_us['Fecha_PT'] - pd.DateOffset(hours=11)
+    df_pt_class_us['Fecha_PT'] = df_pt_class_us['Fecha_PT'].dt.date
+    df_pt_class_us.set_index(['Fecha_PT', 'Jornada', 'Zona'], inplace=True)
+    df_pt_class_us.sort_index(level=[0, 1, 2], inplace=True)
+    
+    df_forecast = read_forecast_db()
+    idx_intersection = df_pt_class_us.index.intersection(df_forecast.index)
+
+    df_eval_pt = pd.DataFrame(index=idx_intersection, columns=['Observado', 'Pronostico'], data='')
+    df_eval_pt['Observado'] = df_pt_class_us.loc[idx_intersection, 'Clase']
+    df_eval_pt['Pronostico'] = df_forecast.loc[idx_intersection, 'Clase']
+    df_eval_pt['Acierto'] = df_eval_pt['Observado'] == df_eval_pt['Pronostico']
+
     xls_output = pd.ExcelWriter('../results/idiger_stats.xlsx')
     df_pt_classes.to_excel(xls_output, 'Classes')
     df_pt_class.to_excel(xls_output, 'Class')
+    df_eval_pt.to_excel(xls_output, 'Eval', merge_cells=False)
     [dt_results[i].sort_index().to_excel(xls_output, i) for i in stats]
     [dt_estimator_class[i].sort_index().to_excel(xls_output, '{}_Class'.format(i)) for i in stats]
+    [dt_stats[i].to_excel(xls_output, '{}_Eval'.format(i), merge_cells=False) for i in stats]
     xls_output.save()
 
 
