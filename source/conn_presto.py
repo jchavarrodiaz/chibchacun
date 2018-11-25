@@ -87,7 +87,7 @@ def summary_sensors_stations(catalog='cassandra', table_data='last_month_observa
     # df_sensors.set_index('sensorid', inplace=True)
     # sensors = df_sensors.index
 
-    sensors = ['0240', '0068', '0069', '0070', '0230', '0255', '0103', '0104', '0027', '0239']
+    sensors = ['0240']  # , '0068', '0069', '0070', '0230', '0255', '0103', '0104', '0027', '0239']
 
     if catalog == 'postgresql':
         sensors = [dt_sensors_postgres[i] for i in sensors]
@@ -123,16 +123,17 @@ def summary_sensors_stations(catalog='cassandra', table_data='last_month_observa
     xls_output.save()
 
 
-def get_stations_by_sensor(conn, table='weather_events', sensor='0240'):
+def get_stations_by_sensor(conn, catalog='cassandra', table='weather_events', sensor='0240'):
     """
     Returns a list of stations that record data from a sensor.
     :param conn: Database connection
+    :param catalog: Database catalog
     :param table: Table name
     :param sensor: Sensor code
     :return:
     """
     cur = conn.cursor()
-    catalog = conn._kwargs['catalog']
+    # catalog = conn._kwargs['catalog']
 
     if catalog == 'cassandra':
         val_sensor = "'{}'".format(sensor)
@@ -153,18 +154,19 @@ def get_stations_by_sensor(conn, table='weather_events', sensor='0240'):
     return cur.fetchall()
 
 
-def get_sensor_station_data(station, sensor, conn, table='weather_events', write_csv=True):
+def get_sensor_station_data(station, sensor, conn, catalog='cassandra', table='weather_events', write_csv=True):
     """
     Gets data from Cassandra table based on station and sensor, and
     write an csv file with data.
     :param station:
     :param sensor:
     :param conn:
+    :param catalog:
     :param table:
     :param write_csv:
     :return:
     """
-    catalog = conn._kwargs['catalog']
+    # catalog = conn._kwargs['catalog']
 
     id_station = dt_fields[catalog]['station']
     id_sensor = dt_fields[catalog]['sensor']
@@ -172,8 +174,8 @@ def get_sensor_station_data(station, sensor, conn, table='weather_events', write
     id_value = dt_fields[catalog]['value']
 
     if catalog == 'cassandra':
-        val_station = "'{:010}'".format(station)
-        val_sensor = "'{}'".format(sensor)
+        val_station = "'{:010}'".format(station) if not isinstance(station, basestring) else station
+        val_sensor = "'{}'".format(sensor) if not isinstance(sensor, basestring) else sensor
 
     else:
         val_station = station
@@ -181,8 +183,8 @@ def get_sensor_station_data(station, sensor, conn, table='weather_events', write
 
     sql = """SELECT {0} station, {1} sensor, {2} event_date, {3} event_value 
     FROM {4} 
-    WHERE {0}={5} 
-    AND {1}={6}""".format(id_station, id_sensor, id_time, id_value, table, val_station, val_sensor)
+    WHERE {0}='{5}' 
+    AND {1}='{6}'""".format(id_station, id_sensor, id_time, id_value, table, val_station, val_sensor)
 
     if write_csv:
         try:
@@ -223,7 +225,7 @@ def download_all_data(sensor='0240', table='weather_events', multiprocess=False)
     :return:
     """
 
-    xls_stations = pd.ExcelFile('../data/cassandra_data_summary.xlsx')
+    xls_stations = pd.ExcelFile('../data/presto_cassandra_summary.xlsx')
     df_summary = xls_stations.parse('Summary', index_col='Station')
     sr_0240 = df_summary[sensor]
     stations_0240 = sr_0240.dropna().index
@@ -268,6 +270,7 @@ def download_from_stations(catalog='cassandra'):
 
 if __name__ == '__main__':
     # summary_sensors_stations('postgresql', 'recent_data')
-    # summary_sensors_stations('cassandra', 'last_month_observations')
+    # summary_sensors_stations('cassandra', 'weather_events')
     # main()
-    download_from_stations()
+    # download_from_stations()
+    download_all_data(multiprocess=True)
