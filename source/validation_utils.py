@@ -44,10 +44,10 @@ def get_elevations():
 
     :return:
     """
-    params = get_config_params('../config/database.ini', section='prestodb_postgresql')
+    params = get_config_params('../config/database.ini', section='prestodb_cassandra')
     conn = prestodb.dbapi.Connection(**params)
-    query_table = 'recent_data'
-    sensor = 1
+    query_table = 'last_month_observations'
+    sensor = '0240'
 
     stations = get_stations_by_sensor(conn=conn, table=query_table, sensor=sensor)
     stations = [item for sublist in stations for item in sublist]
@@ -57,7 +57,7 @@ def get_elevations():
     df_summary.index.name = 'Station'
 
     for station in stations:
-        print(station)
+        # print(station)
         results = get_sensor_station_data(station=station, sensor=sensor, conn=conn, table=query_table, write_csv=False)
         df_station = pd.DataFrame(results)
         sr_station = format_df_data(df_input=df_station, station=station)
@@ -67,7 +67,7 @@ def get_elevations():
         count = sr_station.dropna().count()
         df_summary.loc[station] = [freq_min, start, end, count]
 
-    # df_summary.to_excel('../results/elevations_postgresql.xlsx')
+    df_summary.to_excel('../results/elevations_cassandra.xlsx')
     return df_summary
 
 
@@ -108,4 +108,5 @@ def grubbs_test(df_input, alpha=0.05, two_tail=True):
 
 
 if __name__ == '__main__':
+    get_elevations()
     pass

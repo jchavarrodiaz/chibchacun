@@ -260,7 +260,7 @@ def get_df_data_presto(df_catalog, backward_period='1D', sensor='0240',
             longitude = df_catalog.loc[query_station, 'lng']
             latitude = df_catalog.loc[query_station, 'lat']
             total_data = (end_time - start_time) / pd.Timedelta('{}M'.format(freq))
-            elevation = df_catalog.loc[query_station, 'elevacion']
+            # elevation = df_catalog.loc[query_station, 'elevacion']
             hydro_area = df_catalog.loc[query_station, 'ah']
 
             sql = query_sentence_presto(station=query_station,
@@ -285,7 +285,7 @@ def get_df_data_presto(df_catalog, backward_period='1D', sensor='0240',
                 df_results['Gaps'] = 100. * df_results.loc[0, 'Count'] / total_data
                 df_results['lng'] = longitude
                 df_results['lat'] = latitude
-                df_results['Elevation'] = elevation
+                # df_results['Elevation'] = elevation
                 df_results['AH'] = hydro_area
                 dict_total[query_station] = df_results
 
@@ -408,8 +408,7 @@ def get_df_data_sshm(df_catalog, backward_period='1D', sensor='0240', current_ti
         return None
 
 
-def fetch_data(zone='Bogota', backward_period='1D', sensor='0240',
-               current_time=None):
+def fetch_data(zone='Bogota', backward_period='1D', sensor='0240', current_time=None):
     """
     Collects data from all available databases based on zone and returns a dataframe.
 
@@ -423,7 +422,7 @@ def fetch_data(zone='Bogota', backward_period='1D', sensor='0240',
         databases = ['cassandra', 'postgresql', 'sshm']
 
     else:
-        databases = ['cassandra', 'postgresql']
+        databases = ['cassandra']
 
     # xls_catalog = pd.ExcelFile('../data/catalogos_ideam.xlsx')
     xls_catalog = pd.ExcelFile('../data/catalogos/catalogos_ideam.xlsx')
@@ -440,8 +439,8 @@ def fetch_data(zone='Bogota', backward_period='1D', sensor='0240',
                                              backward_period=backward_period,
                                              sensor=sensor,
                                              section='prestodb_cassandra',
-                                             table='last_month_observations',
-                                             # table='weather_events',
+                                             # table='last_month_observations',
+                                             table='weather_events',
                                              current_time=current_time)
 
                 dt_data['cassandra'] = df_data.copy()
@@ -456,8 +455,8 @@ def fetch_data(zone='Bogota', backward_period='1D', sensor='0240',
                                              backward_period=backward_period,
                                              sensor=sensor,
                                              section='prestodb_postgresql',
-                                             table='recent_data',
-                                             # table='archive_data',
+                                             # table='recent_data',
+                                             table='archive_data',
                                              current_time=current_time)
 
                 dt_data['postgresql'] = df_data.copy()
@@ -483,6 +482,7 @@ def fetch_data(zone='Bogota', backward_period='1D', sensor='0240',
     dt_data = {i: dt_data[i] for i in dt_data if i is not None}
 
     if len(dt_data) > 0:
+        df_total = pd.concat(dt_data, names=['Database'])
         df_total = pd.concat(dt_data, names=['Database'])
 
         if sensor == '0070':

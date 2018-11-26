@@ -87,7 +87,7 @@ def summary_sensors_stations(catalog='cassandra', table_data='last_month_observa
     # df_sensors.set_index('sensorid', inplace=True)
     # sensors = df_sensors.index
 
-    sensors = ['0240']  # , '0068', '0069', '0070', '0230', '0255', '0103', '0104', '0027', '0239']
+    sensors = ['0240', '0068', '0069', '0070', '0230', '0255', '0103', '0104', '0027', '0239']
 
     if catalog == 'postgresql':
         sensors = [dt_sensors_postgres[i] for i in sensors]
@@ -270,7 +270,7 @@ def download_from_stations(catalog='cassandra'):
 
 if __name__ == '__main__':
     # summary_sensors_stations('postgresql', 'recent_data')
-    # summary_sensors_stations('cassandra', 'weather_events')
+    summary_sensors_stations('cassandra', 'last_month_observations')
     # main()
     # download_from_stations()
-    download_all_data(multiprocess=True)
+    # download_all_data(multiprocess=True)

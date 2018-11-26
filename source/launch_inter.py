@@ -9,7 +9,7 @@ from inter_temperature import interpolate_ts
 from inter_utils import dt_sensors_abb
 
 
-def run_hourly(multiprocessing=True, current_time=None):
+def run_hourly(current_time=None, multiprocessing=False):
     """
     Runs hourly precipitation interpolation.
     :param multiprocessing:
@@ -22,8 +22,8 @@ def run_hourly(multiprocessing=True, current_time=None):
 
     start_inter_time = datetime.datetime.now()
     print("Inicio interpolacion horaria: {:%Y-%m-%d %H:%M}".format(start_inter_time))
-    backward_periods = ['1H', '2H', '3H', '6H', '12H', '24H']
-    zones = ['Bogota', 'Colombia']
+    backward_periods = ['6H']  # ['1H', '2H', '3H', '6H', '12H', '24H']
+    zones = ['Bogota']  # , 'Colombia']
     sensors = ['0240']
 
     for sensor in sensors:
@@ -135,13 +135,17 @@ def multiple_days(multiprocessing=False):
 
 
 def multiple_hours(multiprocessing=False):
-    start = '2018-01-23 11:20'
-    end = '2018-01-23 14:20'
-    dates = pd.date_range(start=start, end=end, freq='H')
+    start = '2018-09-30 19:20'
+    end = '2018-11-25 19:20'
+    dates = pd.date_range(start=start, end=end, freq='6H')
 
-    for date in dates:
-        print(date)
-        run_hourly(multiprocessing=multiprocessing, current_time=date)
+    if multiprocessing:
+        pool = Pool()
+        pool.map(run_hourly, dates)
+        pool.close()
+
+    else:
+        map(run_hourly, dates)
 
 
 def run_by_demand(current_time=None, sensor='0240', backward_periods='1D', zone='Colombia', multiprocessing=True):
@@ -202,5 +206,6 @@ def main():
 
 
 if __name__ == '__main__':
-    multiple_days(True)
+    # multiple_days(True)
+    multiple_hours(True)
     pass
